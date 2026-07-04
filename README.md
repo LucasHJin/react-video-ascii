@@ -77,6 +77,7 @@ const sources = ['/video1.mp4', '/video2.mp4'];
 | `clickEffect` | `boolean \| ClickEffectOptions` | `true` | — | Click effects. `true` uses defaults. |
 | `revealEffect` | `boolean \| RevealEffectOptions` | `false` | — | Reveal animation on load. `true` uses defaults. |
 | `cropFocus` | `'left' \| 'center' \| 'right'` | `'center'` | — | Determines where to anchor the cropping around. |
+| `maxDpr` | `number` | *(uncapped)* | `1–4` | Caps the device-pixel ratio the canvas renders at (renders normally at sharpest res). |
 | `className` | `string` | — | — | CSS class on the outer container. |
 
 ---

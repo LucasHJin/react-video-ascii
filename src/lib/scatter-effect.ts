@@ -27,14 +27,18 @@ export function createScatterEffect({
     let gridRows = 0;
     let charW = 1;
     let charH = 1;
+    let gridOffX = 0;
+    let gridOffY = 0;
     let _scatterStateTexture: WebGLTexture | null = null;
 
     return {
-        setup(gl: WebGL2RenderingContext, cols: number, rows: number, cw: number, ch: number, scatterStateTexture: WebGLTexture) {
+        setup(gl: WebGL2RenderingContext, cols: number, rows: number, cw: number, ch: number, offX: number, offY: number, scatterStateTexture: WebGLTexture) {
             gridCols = cols;
             gridRows = rows;
             charW = cw;
             charH = ch;
+            gridOffX = offX;
+            gridOffY = offY;
             _scatterStateTexture = scatterStateTexture;
 
             const cellCount = cols * rows;
@@ -114,14 +118,14 @@ export function createScatterEffect({
                 const cx = cursor.x;
                 const cy = cursor.y;
                 // bound checking area for performance
-                const minCol = Math.max(0, Math.floor((cx - radiusPx) / charW));
-                const maxCol = Math.min(gridCols - 1, Math.floor((cx + radiusPx) / charW));
-                const minRow = Math.max(0, Math.floor((cy - radiusPx) / charH));
-                const maxRow = Math.min(gridRows - 1, Math.floor((cy + radiusPx) / charH));
+                const minCol = Math.max(0, Math.floor((cx - gridOffX - radiusPx) / charW));
+                const maxCol = Math.min(gridCols - 1, Math.floor((cx - gridOffX + radiusPx) / charW));
+                const minRow = Math.max(0, Math.floor((cy - gridOffY - radiusPx) / charH));
+                const maxRow = Math.min(gridRows - 1, Math.floor((cy - gridOffY + radiusPx) / charH));
                 for (let row = minRow; row <= maxRow; row++) {
                     for (let col = minCol; col <= maxCol; col++) {
-                        const cellCx = (col + 0.5) * charW;
-                        const cellCy = (row + 0.5) * charH;
+                        const cellCx = gridOffX + (col + 0.5) * charW;
+                        const cellCy = gridOffY + (row + 0.5) * charH;
                         const dd = Math.hypot(cellCx - cx, cellCy - cy);
                         if (dd > radiusPx) {
                             continue;

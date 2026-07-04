@@ -12,6 +12,7 @@ uniform int u_numCharsInt;
 uniform float u_shapeExponent;
 uniform vec2 u_cropOffset;
 uniform vec2 u_cropScale;
+uniform vec2 u_gridOffset;
 
 out uvec4 fragCharInd;
 
@@ -30,7 +31,7 @@ void main() {
     float sv[6];
     for (int ci = 0; ci < 6; ci++) {
         // normalized coordinates for circle center over full video texture
-        vec2 centerUV = u_cropOffset + (vec2(cellCoord) + CIRCLES[ci]) * u_cellsize / u_resolution * u_cropScale;
+        vec2 centerUV = u_cropOffset + (u_gridOffset + (vec2(cellCoord) + CIRCLES[ci]) * u_cellsize) / u_resolution * u_cropScale;
         float total = 0.0;
         int count = 0;
         for (int dx = -u_circleN; dx <= u_circleN; dx++) {

@@ -7,6 +7,8 @@ import { createScatterEffect } from "../lib/scatter-effect";
 import { createMouseTrail } from "../lib/brighten-effect";
 import { createClickEffect } from "../lib/click-effect";
 import { createSpreadEffect } from "../lib/spread-effect";
+import { observeDevicePixelSize } from "../lib/device-pixel-size";
+import type { DevicePixelSize } from "../lib/device-pixel-size";
 
 function VideoAscii({
         src,
@@ -22,6 +24,7 @@ function VideoAscii({
         charMode = 'shape',
         className,
         cropFocus = 'center',
+        maxDpr: maxDprRaw,
     }: Props) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -35,7 +38,8 @@ function VideoAscii({
             clickEnabled, clickBrightness, clickSpeed,
             spreadEnabled, spreadExpandDuration, spreadSpeed,
             revealEnabled, revealDuration, revealEffectFlag,
-    } = parseProps(numColsRaw, brightnessRaw, saturationRaw, bgOpacityRaw, mouseEffect, clickEffect, revealEffect);
+            maxDpr,
+    } = parseProps(numColsRaw, brightnessRaw, saturationRaw, bgOpacityRaw, mouseEffect, clickEffect, revealEffect, maxDprRaw);
 
     // refs for props that update dynamically without full GL reinit
     const brightnessRef = useRef(brightness);
@@ -62,6 +66,10 @@ function VideoAscii({
     const cropFocusRef = useRef<'left' | 'center' | 'right'>(cropFocus);
     const containerWRef = useRef(0);
     const containerHRef = useRef(0);
+    const maxDprRef = useRef(maxDpr);
+    const pixelScaleRef = useRef(1);
+    const rawSizeRef = useRef<DevicePixelSize | null>(null);
+    const applyDeviceSizeRef = useRef<((s: DevicePixelSize) => void) | null>(null);
     // update refs inside useEffect (not in render) -> avoids unintentional errors
     useEffect(() => {
         brightnessRef.current = brightness;
@@ -136,6 +144,13 @@ function VideoAscii({
     }, [cropFocus]);
 
     useEffect(() => {
+        maxDprRef.current = maxDpr;
+        if (loadedRef.current && rawSizeRef.current) {
+            applyDeviceSizeRef.current?.(rawSizeRef.current);
+        }
+    }, [maxDpr]);
+
+    useEffect(() => {
         loadedRef.current = false;
 
         let shapeData: { char: string, vector: number[] }[] = [];
@@ -143,6 +158,8 @@ function VideoAscii({
         let gridRows = 0;
         let charW = 1;
         let charH = 1;
+        let gridOffsetX = 0;
+        let gridOffsetY = 0;
         let containerW = 0;
         let containerH = 0;
 
@@ -172,7 +189,7 @@ function VideoAscii({
         // create effect handlers
         const scatterEffects = createScatterEffect({ scatterEnabledRef, mouseRadiusRef, durationRef, scatterCharsRef });
         const trailEffects = createMouseTrail({ brightenEnabledRef, trailLenRef, durationRef, trailDecayRef });
-        const clickEffects = createClickEffect({ clickEnabledRef, clickSpeedRef, clickBrightnessRef });
+        const clickEffects = createClickEffect({ clickEnabledRef, clickSpeedRef, clickBrightnessRef, pixelScaleRef });
         const spreadEffects = createSpreadEffect({ spreadEnabledRef, scatterCharsRef, spreadExpandDurationRef, spreadSpeedRef });
 
         let animFrameId: number;
@@ -199,23 +216,23 @@ function VideoAscii({
             // try a font size of double width, find actually how wide it is, use this as scale factor
             charH = Math.max(1, Math.round(probe * charW / hiddenCtx.measureText('M').width));
 
-            gridCols = Math.floor(baseW / charW);
-            gridRows = Math.floor(baseH / charH);
+            gridCols = Math.ceil(baseW / charW);
+            gridRows = Math.ceil(baseH / charH);
 
-            // snap canvas to exact integer multiples (no float boundary errors) -> fill with css not with gpu
-                // only small stretch: shader crops video to canvas, canvas gets stretched to container
-            canvas.width = gridCols * charW;
-            canvas.height = gridRows * charH;
+            gridOffsetX = Math.floor((baseW - gridCols * charW) / 2);
+            gridOffsetY = Math.floor((baseH - gridRows * charH) / 2);
             gl.viewport(0, 0, canvas.width, canvas.height);
             gl.useProgram(program);
             gl.uniform2f(resources.resLoc, canvas.width, canvas.height);
+            gl.uniform2f(resources.gridOffsetLoc, gridOffsetX, gridOffsetY);
             gl.useProgram(pass1Program);
             gl.uniform2f(resources.p1ResLoc, canvas.width, canvas.height);
+            gl.uniform2f(resources.p1GridOffsetLoc, gridOffsetX, gridOffsetY);
             gl.useProgram(program);
 
             // resize for scatter and spread effects
-            scatterEffects.setup(gl, gridCols, gridRows, charW, charH, resources.scatterStateTexture);
-            spreadEffects.setup(gl, gridCols, gridRows, charW, charH, resources.spreadStateTexture);
+            scatterEffects.setup(gl, gridCols, gridRows, charW, charH, gridOffsetX, gridOffsetY, resources.scatterStateTexture);
+            spreadEffects.setup(gl, gridCols, gridRows, charW, charH, gridOffsetX, gridOffsetY, resources.spreadStateTexture);
 
             if (charMode === 'shape') {
                 shapeData = computeShapeVectors(chars, charW, charH);
@@ -338,6 +355,16 @@ function VideoAscii({
         };
         setupCanvasRef.current = setupCanvas;
 
+        const applyDeviceSize = (s: DevicePixelSize) => {
+            rawSizeRef.current = s;
+            const scale = Math.min(1, maxDprRef.current / (window.devicePixelRatio || 1));
+            const cw = Math.max(1, Math.round(s.width * scale));
+            const ch = Math.max(1, Math.round(s.height * scale));
+            pixelScaleRef.current = s.cssWidth > 0 ? cw / s.cssWidth : 1;
+            setupCanvas(cw, ch);
+        };
+        applyDeviceSizeRef.current = applyDeviceSize;
+
         const onMouseMove = (e: MouseEvent) => {
             if (!mouseEnabledRef.current) return;
             const rect = canvas.getBoundingClientRect();
@@ -404,7 +431,15 @@ function VideoAscii({
 
         const onLoaded = () => {
             const containerEl = containerRef.current!;
-            setupCanvas(containerEl.clientWidth || video.videoWidth, containerEl.clientHeight || video.videoHeight);
+            const s = rawSizeRef.current;
+            if (s && s.width > 0 && s.height > 0) {
+                applyDeviceSize(s);
+            } else {
+                const dpr = window.devicePixelRatio || 1;
+                const cssW = containerEl.clientWidth || video.videoWidth;
+                const cssH = containerEl.clientHeight || video.videoHeight;
+                applyDeviceSize({ width: Math.round(cssW * dpr), height: Math.round(cssH * dpr), cssWidth: cssW, cssHeight: cssH });
+            }
 
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, resources.texture);
@@ -424,15 +459,14 @@ function VideoAscii({
         };
 
         // resize canvas when container is resized
-        const ro = new ResizeObserver(entries => {
-            const { width, height } = entries[0].contentRect;
-            if (loadedRef.current && width > 0 && height > 0) {
-                setupCanvas(width, height);
-            }
-        });
-        if (containerRef.current) {
-            ro.observe(containerRef.current);
-        }
+        const unobserve = containerRef.current
+            ? observeDevicePixelSize(containerRef.current, s => {
+                rawSizeRef.current = s;
+                if (loadedRef.current && s.width > 0 && s.height > 0) {
+                    applyDeviceSize(s);
+                }
+            })
+            : () => {};
 
         video.addEventListener("loadeddata", onLoaded, { once: true });
         if (isMultiSource) {
@@ -445,10 +479,11 @@ function VideoAscii({
         }
 
         return () => {
-            ro.disconnect();
+            unobserve();
             setupGridRef.current = null;
             rebuildScatterAtlasRef.current = null;
             setupCanvasRef.current = null;
+            applyDeviceSizeRef.current = null;
             loadedRef.current = false;
             cancelAnimationFrame(animFrameId);
             video.removeEventListener("loadeddata", onLoaded);
