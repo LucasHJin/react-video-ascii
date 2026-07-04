@@ -18,6 +18,8 @@ export function createSpreadEffect({
     let gridRows = 0;
     let charW = 1;
     let charH = 1;
+    let gridOffX = 0;
+    let gridOffY = 0;
     let _spreadStateTexture: WebGLTexture | null = null;
     let lastFrameMs = -1;
     let expandUntil = -1;
@@ -27,11 +29,13 @@ export function createSpreadEffect({
 
     return {
         // called when grid resizes -> allocate arrays for cellChar and cellPhase (which to show, what state)
-        setup(gl: WebGL2RenderingContext, cols: number, rows: number, cw: number, ch: number, spreadStateTexture: WebGLTexture) {
+        setup(gl: WebGL2RenderingContext, cols: number, rows: number, cw: number, ch: number, offX: number, offY: number, spreadStateTexture: WebGLTexture) {
             gridCols = cols;
             gridRows = rows;
             charW = cw;
             charH = ch;
+            gridOffX = offX;
+            gridOffY = offY;
             _spreadStateTexture = spreadStateTexture;
 
             const cellCount = cols * rows;
@@ -52,8 +56,8 @@ export function createSpreadEffect({
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) * (canvas.width / rect.width);
             const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-            const col = Math.floor(x / charW);
-            const row = Math.floor(y / charH);
+            const col = Math.floor((x - gridOffX) / charW);
+            const row = Math.floor((y - gridOffY) / charH);
             if (col < 0 || col >= gridCols || row < 0 || row >= gridRows) {
                 return;
             }

@@ -27,6 +27,7 @@ export interface GLResources {
     p1ExponentLoc: WebGLUniformLocation | null;
     p1CropOffsetLoc: WebGLUniformLocation | null;
     p1CropScaleLoc: WebGLUniformLocation | null;
+    p1GridOffsetLoc: WebGLUniformLocation | null;
     // pass2 uniform locations
     revealEffectFlagLoc: WebGLUniformLocation | null;
     mouseEffectFlagLoc: WebGLUniformLocation | null;
@@ -53,6 +54,7 @@ export interface GLResources {
     gridSizeLoc: WebGLUniformLocation | null;
     cropOffsetLoc: WebGLUniformLocation | null;
     cropScaleLoc: WebGLUniformLocation | null;
+    gridOffsetLoc: WebGLUniformLocation | null;
 }
 
 export function createGLResources(gl: WebGL2RenderingContext): GLResources | null {
@@ -87,8 +89,8 @@ export function createGLResources(gl: WebGL2RenderingContext): GLResources | nul
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     const texLoc = gl.getUniformLocation(program, "u_texture");
     gl.uniform1i(texLoc, 0);
 
@@ -128,6 +130,7 @@ export function createGLResources(gl: WebGL2RenderingContext): GLResources | nul
     // for resizing
     const p1CropOffsetLoc = gl.getUniformLocation(pass1Program, "u_cropOffset");
     const p1CropScaleLoc = gl.getUniformLocation(pass1Program, "u_cropScale");
+    const p1GridOffsetLoc = gl.getUniformLocation(pass1Program, "u_gridOffset");
 
     // FBO texture (each byte stores one character index)
     const fboTexture = gl.createTexture()!;
@@ -199,6 +202,7 @@ export function createGLResources(gl: WebGL2RenderingContext): GLResources | nul
     const gridSizeLoc = gl.getUniformLocation(program, "u_gridSize");
     const cropOffsetLoc = gl.getUniformLocation(program, "u_cropOffset");
     const cropScaleLoc = gl.getUniformLocation(program, "u_cropScale");
+    const gridOffsetLoc = gl.getUniformLocation(program, "u_gridOffset");
 
     return {
         program, pass1Program,
@@ -206,12 +210,12 @@ export function createGLResources(gl: WebGL2RenderingContext): GLResources | nul
         vertShader, fragShader, pass1FragShader,
         texture, atlasTexture, charVectorsTexture, fboTexture, fbo,
         scatterAtlasTexture, scatterStateTexture, spreadStateTexture,
-        p1ResLoc, p1CellsizeLoc, p1CircleNLoc, p1NumCharsLoc, p1ExponentLoc, p1CropOffsetLoc, p1CropScaleLoc,
+        p1ResLoc, p1CellsizeLoc, p1CircleNLoc, p1NumCharsLoc, p1ExponentLoc, p1CropOffsetLoc, p1CropScaleLoc, p1GridOffsetLoc,
         revealEffectFlagLoc, mouseEffectFlagLoc, clickEffectFlagLoc,
         shapeMatchingLoc, revealProgressLoc, brightnessLoc, saturationLoc, bgOpacityLoc,
         mouseBrightnessLoc, mousePositionsLoc, mouseLifeFracsLoc, mouseRadiusLoc,
         ripplePositionsLoc, rippleRadiiLoc, rippleBrightnessesLoc,
         scatterEffectFlagLoc, scatterNumCharsLoc, spreadEffectFlagLoc, videoModeLoc,
-        resLoc, sizeLoc, numLoc, gridSizeLoc, cropOffsetLoc, cropScaleLoc,
+        resLoc, sizeLoc, numLoc, gridSizeLoc, cropOffsetLoc, cropScaleLoc, gridOffsetLoc,
     };
 }

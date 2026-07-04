@@ -41,6 +41,7 @@ export interface Props {
     charMode?: 'shape' | 'luminance';
     className?: string;
     cropFocus?: 'left' | 'center' | 'right';
+    maxDpr?: number;
 }
 
 export interface ParsedProps {
@@ -68,6 +69,7 @@ export interface ParsedProps {
     revealType: string;
     revealDuration: number;
     revealEffectFlag: number;
+    maxDpr: number;
 }
 
 export function parseProps(
@@ -78,6 +80,7 @@ export function parseProps(
     mouseEffect: boolean | MouseEffectOptions,
     clickEffect: boolean | ClickEffectOptions,
     revealEffect: boolean | RevealEffectOptions,
+    maxDprRaw?: number,
 ): ParsedProps {
     // destructure effects
     const mouseEnabled = !!mouseEffect;
@@ -122,6 +125,7 @@ export function parseProps(
     clickSpeed = Math.max(0.5, Math.min(4.0, clickSpeed));
     spreadExpandDuration = Math.max(0.5, Math.min(5.0, spreadExpandDuration));
     spreadSpeed = Math.max(0.5, Math.min(10.0, spreadSpeed));
+    const maxDpr = maxDprRaw === undefined ? Infinity : Math.max(1, Math.min(4, maxDprRaw));
 
     let revealEffectFlag;
     if (!revealEnabled) {
@@ -141,5 +145,6 @@ export function parseProps(
         clickEnabled, clickBrightness, clickSpeed,
         spreadEnabled, spreadExpandDuration, spreadSpeed,
         revealEnabled, revealType, revealDuration, revealEffectFlag,
+        maxDpr,
     };
 }

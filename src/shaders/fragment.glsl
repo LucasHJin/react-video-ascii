@@ -45,6 +45,7 @@ uniform float u_numChars;
 uniform vec2 u_gridSize;
 uniform vec2 u_cropOffset;
 uniform vec2 u_cropScale;
+uniform vec2 u_gridOffset;
 
 out vec4 fragColor;
 
@@ -79,7 +80,10 @@ vec3 hsl2rgb(vec3 c) {
 
 void main() {
     vec2 fragCoord = vec2(gl_FragCoord.x, u_resolution.y - gl_FragCoord.y); // flip y coords
-    vec2 cellCoord = floor(fragCoord / u_cellsize);
+    vec2 gridCoord = fragCoord - u_gridOffset;
+    vec2 cellCoordF = floor(gridCoord / u_cellsize);
+    bool inGrid = all(greaterThanEqual(cellCoordF, vec2(0.0))) && all(lessThan(cellCoordF, u_gridSize));
+    vec2 cellCoord = clamp(cellCoordF, vec2(0.0), u_gridSize - 1.0);
 
     if (u_revealEffectFlag == 1) {
         // reveal effect -> show what should be revealed, make rest black
@@ -103,7 +107,7 @@ void main() {
         }
     }
 
-    vec2 cellCenter = (cellCoord + 0.5) * u_cellsize; // figure out center pixel of cell
+    vec2 cellCenter = u_gridOffset + (cellCoord + 0.5) * u_cellsize; // figure out center pixel of cell
     // sample per pixel vs per cell center (video vs ascii), then remap into cropped video region
     vec2 rawUV = u_videoMode ? (fragCoord / u_resolution) : (cellCenter / u_resolution);
     vec2 sampleUV = u_cropOffset + rawUV * u_cropScale;
@@ -115,11 +119,11 @@ void main() {
     hsl.y = clamp(hsl.y * u_saturation, 0.0, 1.0);
     cellColor = hsl2rgb(hsl);
 
-    vec2 withinCellPos = fract(fragCoord / u_cellsize);
+    vec2 withinCellPos = fract(gridCoord / u_cellsize);
 
-    // ascii char lookup 
+    // ascii char lookup
     float glyphMask = 0.0;
-    if (!u_videoMode) {
+    if (!u_videoMode && inGrid) {
         uint charInd;
         if (u_shapeMatching) {
             charInd = texelFetch(u_fboTexture, ivec2(cellCoord), 0).r;
@@ -135,7 +139,7 @@ void main() {
 
     bool scatterHit = false;
     vec3 scatterColor = vec3(0.0);
-    if (u_scatterEffect) {
+    if (u_scatterEffect && inGrid) {
         uint state = texelFetch(u_scatterStateTexture, ivec2(cellCoord), 0).r;
         if (state > 0u) {
             int idx = int(state) - 1;
@@ -148,7 +152,7 @@ void main() {
         }
     }
     
-    if (!scatterHit && u_spreadEffect) { // scatter takes priority
+    if (!scatterHit && u_spreadEffect && inGrid) { // scatter takes priority
         uint state = texelFetch(u_spreadStateTexture, ivec2(cellCoord), 0).r;
         if (state > 0u) {
             int idx = int(state) - 1;
