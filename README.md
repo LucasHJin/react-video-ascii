@@ -30,6 +30,12 @@ import { VideoAscii } from 'react-video-ascii';
 const sources = ['/video1.mp4', '/video2.mp4'];
 <VideoAscii src={sources} />
 
+// Sample an element you already loaded instead of a URL
+// (swap between preloaded elements without any reload)
+const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+<video ref={setVideo} src="/video.mp4" muted playsInline preload="auto" hidden />
+<VideoAscii media={video} />
+
 // With options
 <VideoAscii
   src="/video.mp4"
@@ -65,12 +71,15 @@ const sources = ['/video1.mp4', '/video2.mp4'];
 
 > **Note 2:** The component fills its parent container. Control size via the parent element or the `className` prop.
 
+> **Note 3:** With `media`, VideoAscii calls `play()` on a video when it starts sampling it and never pauses it; pausing, muting and loading are up to you. Changing `media` re-initialises the renderer but performs no network load.
+
 ## Props
 
 | Prop | Type | Default | Range | Description |
 |------|------|---------|-------|-------------|
-| `src` | `string \| string[]` | — | — | Video or image source URL(s). Multiple video URLs play sequentially. |
+| `src` | `string \| string[]` | — | — | Video or image source URL(s). Multiple video URLs play sequentially. Required unless `media` is given. |
 | `mediaType` | `'auto' \| 'video' \| 'image'` | `'auto'` | — | How to load `src`. `auto` treats common image extensions as images and everything else as video. |
+| `media` | `HTMLVideoElement \| HTMLImageElement \| null` | — | — | A loaded element to sample instead of `src`. Pass `null` while it isn't ready. |
 | `videoMode` | `boolean` | `false` | — | Show original video/image colors instead of ASCII. |
 | `numColsRaw` | `number` | `250` | `20–350` | Number of character columns. |
 | `brightnessRaw` | `number` | `1.0` | `0.0–2.0` | Brightness multiplier. |

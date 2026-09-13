@@ -37,9 +37,7 @@ export function resolveMediaType(src: string | string[], mediaType: MediaType): 
     return IMAGE_EXTENSIONS.test(first) ? 'image' : 'video';
 }
 
-export interface Props {
-    src: string | string[]; // video or image URL; when calling, can't use inline array directly (or else if state rerenders, it will create a new array)
-    mediaType?: MediaType;
+interface BaseProps {
     videoMode?: boolean;
     numColsRaw?: number;
     brightnessRaw?: number;
@@ -54,6 +52,20 @@ export interface Props {
     cropFocus?: 'left' | 'center' | 'right';
     maxDpr?: number;
 }
+
+export interface SourceProps extends BaseProps {
+    src: string | string[]; // video or image URL; when calling, can't use inline array directly (or else if state rerenders, it will create a new array)
+    mediaType?: MediaType;
+    media?: undefined;
+}
+
+export interface ElementProps extends BaseProps {
+    media: HTMLVideoElement | HTMLImageElement | null; // an element the caller owns and has already loaded; null while it isn't ready
+    src?: undefined;
+    mediaType?: undefined;
+}
+
+export type Props = SourceProps | ElementProps;
 
 export interface ParsedProps {
     numCols: number;

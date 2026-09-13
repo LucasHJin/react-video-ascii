@@ -13,6 +13,7 @@ import type { DevicePixelSize } from "../lib/device-pixel-size";
 function VideoAscii({
         src,
         mediaType = 'auto',
+        media: mediaProp,
         videoMode = false,
         numColsRaw = 250,
         brightnessRaw = 1.0,
@@ -42,7 +43,8 @@ function VideoAscii({
             revealEnabled, revealDuration, revealEffectFlag,
             maxDpr,
     } = parseProps(numColsRaw, brightnessRaw, saturationRaw, bgOpacityRaw, mouseEffect, clickEffect, revealEffect, maxDprRaw);
-    const isImage = resolveMediaType(src, mediaType) === 'image';
+    const external = src === undefined;
+    const isImage = src !== undefined && resolveMediaType(src, mediaType) === 'image';
 
     // refs for props that update dynamically without full GL reinit
     const brightnessRef = useRef(brightness);
@@ -169,7 +171,7 @@ function VideoAscii({
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const media = isImage ? imageRef.current : videoRef.current;
+        const media = external ? mediaProp : isImage ? imageRef.current : videoRef.current;
         if (!media) return;
         const video = media instanceof HTMLVideoElement ? media : null;
         const image = media instanceof HTMLImageElement ? media : null;
@@ -201,12 +203,12 @@ function VideoAscii({
         const clickEffects = createClickEffect({ clickEnabledRef, clickSpeedRef, clickBrightnessRef, pixelScaleRef });
         const spreadEffects = createSpreadEffect({ spreadEnabledRef, scatterCharsRef, spreadExpandDurationRef, spreadSpeedRef });
 
-        let animFrameId: number;
+        let animFrameId = 0;
         let lastTime = -1;
         let startTime = -1;
         let currentVidIndex = 0;
 
-        const sources = Array.isArray(src) ? src : [src];
+        const sources = Array.isArray(src) ? src : src === undefined ? [] : [src];
         const isMultiSource = sources.length > 1;
 
         // extract hiddenCtx (use it for all reusable writing)
@@ -459,6 +461,7 @@ function VideoAscii({
             video?.play();
             startTime = performance.now();
             loadedRef.current = true;
+            cancelAnimationFrame(animFrameId);
             animFrameId = requestAnimationFrame(loop);
         };
 
@@ -481,11 +484,13 @@ function VideoAscii({
             : () => {};
 
         if (video) {
-            video.addEventListener("loadeddata", onLoaded, { once: true });
+            video.addEventListener("loadeddata", onLoaded, { once: !external });
             if (isMultiSource) {
                 video.addEventListener("ended", onEnded);
             }
-            if (video.readyState >= 2 && video.currentSrc.endsWith(sources[0])) {
+            if (external) {
+                if (video.readyState >= 2) onLoaded();
+            } else if (video.readyState >= 2 && video.currentSrc.endsWith(sources[0])) {
                 onLoaded();
             } else if (!video.currentSrc.endsWith(sources[0])) {
                 video.load(); // updates src in source -> need to trigger reload
@@ -533,13 +538,13 @@ function VideoAscii({
             gl.deleteTexture(resources.scatterStateTexture);
             gl.deleteTexture(resources.spreadStateTexture);
         };
-    }, [src, charMode, chars, revealEffectFlag, revealDuration, revealEnabled, isImage]);
+    }, [src, mediaProp, external, charMode, chars, revealEffectFlag, revealDuration, revealEnabled, isImage]);
 
     const firstSrc = Array.isArray(src) ? src[0] : src;
 
     return (
         <div ref={containerRef} className={className} style={{ height: '100%', width: '100%' }}>
-            {isImage ? (
+            {external ? null : isImage ? (
                 <img ref={imageRef} src={firstSrc} alt="" style={{ display: "none" }} />
             ) : (
                 <video ref={videoRef} muted playsInline autoPlay loop={!Array.isArray(src) || src.length === 1} style={{ display: "none" }}>
