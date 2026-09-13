@@ -1,6 +1,6 @@
 # react-video-ascii
 
-React component optimized for rendering videos as ASCII using WebGL2. 
+React component optimized for rendering videos and images as ASCII using WebGL2. 
 
 <p align="center">
   <img width="1512" height="949" alt="demo" src="https://github.com/user-attachments/assets/2b41b0af-e864-430d-ade5-0249335d1aac" />
@@ -21,6 +21,10 @@ import { VideoAscii } from 'react-video-ascii';
 
 // Basic usage
 <VideoAscii src="/video.mp4" />
+
+// Images work too (detected by extension, or force it with mediaType)
+<VideoAscii src="/photo.jpg" />
+<VideoAscii src="/api/photo?id=1" mediaType="image" />
 
 // Multiple videos (loop sequentially)
 const sources = ['/video1.mp4', '/video2.mp4'];
@@ -65,8 +69,9 @@ const sources = ['/video1.mp4', '/video2.mp4'];
 
 | Prop | Type | Default | Range | Description |
 |------|------|---------|-------|-------------|
-| `src` | `string \| string[]` | — | — | Video source URL(s). Multiple URLs play sequentially. |
-| `videoMode` | `boolean` | `false` | — | Show original video colors instead of ASCII. |
+| `src` | `string \| string[]` | — | — | Video or image source URL(s). Multiple video URLs play sequentially. |
+| `mediaType` | `'auto' \| 'video' \| 'image'` | `'auto'` | — | How to load `src`. `auto` treats common image extensions as images and everything else as video. |
+| `videoMode` | `boolean` | `false` | — | Show original video/image colors instead of ASCII. |
 | `numColsRaw` | `number` | `250` | `20–350` | Number of character columns. |
 | `brightnessRaw` | `number` | `1.0` | `0.0–2.0` | Brightness multiplier. |
 | `saturationRaw` | `number` | `1.0` | `0.0–2.0` | Saturation multiplier. |

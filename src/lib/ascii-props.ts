@@ -27,8 +27,19 @@ export interface RevealEffectOptions {
     duration?: number;
 }
 
+export type MediaType = 'auto' | 'video' | 'image';
+
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(?:[?#].*)?$/i;
+
+export function resolveMediaType(src: string | string[], mediaType: MediaType): 'video' | 'image' {
+    if (mediaType !== 'auto') return mediaType;
+    const first = Array.isArray(src) ? src[0] : src;
+    return IMAGE_EXTENSIONS.test(first) ? 'image' : 'video';
+}
+
 export interface Props {
-    src: string | string[]; // when calling, can't use inline array directly (or else if state rerenders, it will create a new array)
+    src: string | string[]; // video or image URL; when calling, can't use inline array directly (or else if state rerenders, it will create a new array)
+    mediaType?: MediaType;
     videoMode?: boolean;
     numColsRaw?: number;
     brightnessRaw?: number;

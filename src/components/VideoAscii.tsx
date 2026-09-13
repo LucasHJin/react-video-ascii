@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 import { computeShapeVectors } from "../lib/ascii-utils";
-import { DEFAULT_CHARS, parseProps } from "../lib/ascii-props";
+import { DEFAULT_CHARS, parseProps, resolveMediaType } from "../lib/ascii-props";
 import type { Props } from "../lib/ascii-props";
 import { createGLResources } from "../lib/create-gl-resources";
 import { createScatterEffect } from "../lib/scatter-effect";
@@ -12,6 +12,7 @@ import type { DevicePixelSize } from "../lib/device-pixel-size";
 
 function VideoAscii({
         src,
+        mediaType = 'auto',
         videoMode = false,
         numColsRaw = 250,
         brightnessRaw = 1.0,
@@ -28,6 +29,7 @@ function VideoAscii({
     }: Props) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
+    const imageRef = useRef<HTMLImageElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const atlasTextureRef = useRef<WebGLTexture | null>(null);
     const scatterAtlasTextureRef = useRef<WebGLTexture | null>(null);
@@ -40,6 +42,7 @@ function VideoAscii({
             revealEnabled, revealDuration, revealEffectFlag,
             maxDpr,
     } = parseProps(numColsRaw, brightnessRaw, saturationRaw, bgOpacityRaw, mouseEffect, clickEffect, revealEffect, maxDprRaw);
+    const isImage = resolveMediaType(src, mediaType) === 'image';
 
     // refs for props that update dynamically without full GL reinit
     const brightnessRef = useRef(brightness);
@@ -166,8 +169,14 @@ function VideoAscii({
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const video = videoRef.current;
-        if (!video) return;
+        const media = isImage ? imageRef.current : videoRef.current;
+        if (!media) return;
+        const video = media instanceof HTMLVideoElement ? media : null;
+        const image = media instanceof HTMLImageElement ? media : null;
+        const getMediaSize = () =>
+            media instanceof HTMLVideoElement
+                ? { width: media.videoWidth, height: media.videoHeight }
+                : { width: media.naturalWidth, height: media.naturalHeight };
 
         const gl = canvas.getContext("webgl2");
         if (!gl) return;
@@ -328,18 +337,19 @@ function VideoAscii({
             canvas.height = containerH;
             setupGrid(numColsRef.current);
 
-            // crop video to match snapped canvas AR (avoids slight AR error from container dimensions)
-            const videoAR = video.videoWidth / video.videoHeight;
+            // crop media to match snapped canvas AR (avoids slight AR error from container dimensions)
+            const mediaSize = getMediaSize();
+            const mediaAR = mediaSize.width / mediaSize.height;
             const displayAR = canvas.width / canvas.height;
             let scaleX = 1.0;
             let scaleY = 1.0;
             let offsetX = 0.0;
             let offsetY = 0.0;
-            if (displayAR > videoAR) { // video is taller relative -> crop top/bottom, full width shown
-                scaleY = videoAR / displayAR;
+            if (displayAR > mediaAR) { // media is taller relative -> crop top/bottom, full width shown
+                scaleY = mediaAR / displayAR;
                 offsetY = (1.0 - scaleY) / 2.0;
-            } else { // video shorter -> crop left/right based on cropFocus
-                scaleX = displayAR / videoAR;
+            } else { // media shorter -> crop left/right based on cropFocus
+                scaleX = displayAR / mediaAR;
                 const focus = cropFocusRef.current;
                 // can crop to left, center, right
                 const focusCenter = focus === 'left' ? 0.25 : focus === 'right' ? 0.75 : 0.5;
@@ -403,7 +413,7 @@ function VideoAscii({
                 gl.uniform1f(resources.revealProgressLoc, progress);
             }
 
-            if (loadedRef.current && video.currentTime != lastTime && video.readyState >= 2) {
+            if (loadedRef.current && video && video.currentTime != lastTime && video.readyState >= 2) {
                 gl.activeTexture(gl.TEXTURE0);
                 gl.bindTexture(gl.TEXTURE_2D, resources.texture);
                 gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, video);
@@ -436,22 +446,24 @@ function VideoAscii({
                 applyDeviceSize(s);
             } else {
                 const dpr = window.devicePixelRatio || 1;
-                const cssW = containerEl.clientWidth || video.videoWidth;
-                const cssH = containerEl.clientHeight || video.videoHeight;
+                const mediaSize = getMediaSize();
+                const cssW = containerEl.clientWidth || mediaSize.width;
+                const cssH = containerEl.clientHeight || mediaSize.height;
                 applyDeviceSize({ width: Math.round(cssW * dpr), height: Math.round(cssH * dpr), cssWidth: cssW, cssHeight: cssH });
             }
 
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, resources.texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, media);
 
-            video.play();
+            video?.play();
             startTime = performance.now();
             loadedRef.current = true;
             animFrameId = requestAnimationFrame(loop);
         };
 
         const onEnded = () => {
+            if (!video) return;
             currentVidIndex = (currentVidIndex + 1) % sources.length;
             video.src = sources[currentVidIndex];
             video.load();
@@ -468,14 +480,22 @@ function VideoAscii({
             })
             : () => {};
 
-        video.addEventListener("loadeddata", onLoaded, { once: true });
-        if (isMultiSource) {
-            video.addEventListener("ended", onEnded);
-        }
-        if (video.readyState >= 2 && video.currentSrc.endsWith(sources[0])) {
-            onLoaded();
-        } else if (!video.currentSrc.endsWith(sources[0])) {
-            video.load(); // updates src in source -> need to trigger reload
+        if (video) {
+            video.addEventListener("loadeddata", onLoaded, { once: true });
+            if (isMultiSource) {
+                video.addEventListener("ended", onEnded);
+            }
+            if (video.readyState >= 2 && video.currentSrc.endsWith(sources[0])) {
+                onLoaded();
+            } else if (!video.currentSrc.endsWith(sources[0])) {
+                video.load(); // updates src in source -> need to trigger reload
+            }
+        } else if (image) {
+            if (image.complete && image.naturalWidth > 0) {
+                onLoaded();
+            } else {
+                image.addEventListener("load", onLoaded, { once: true });
+            }
         }
 
         return () => {
@@ -486,9 +506,13 @@ function VideoAscii({
             applyDeviceSizeRef.current = null;
             loadedRef.current = false;
             cancelAnimationFrame(animFrameId);
-            video.removeEventListener("loadeddata", onLoaded);
-            if (isMultiSource) {
-                video.removeEventListener("ended", onEnded);
+            if (video) {
+                video.removeEventListener("loadeddata", onLoaded);
+                if (isMultiSource) {
+                    video.removeEventListener("ended", onEnded);
+                }
+            } else {
+                image?.removeEventListener("load", onLoaded);
             }
             canvas.removeEventListener("mousemove", onMouseMove);
             canvas.removeEventListener("mouseleave", onMouseLeave);
@@ -509,13 +533,19 @@ function VideoAscii({
             gl.deleteTexture(resources.scatterStateTexture);
             gl.deleteTexture(resources.spreadStateTexture);
         };
-    }, [src, charMode, chars, revealEffectFlag, revealDuration, revealEnabled]);
+    }, [src, charMode, chars, revealEffectFlag, revealDuration, revealEnabled, isImage]);
+
+    const firstSrc = Array.isArray(src) ? src[0] : src;
 
     return (
         <div ref={containerRef} className={className} style={{ height: '100%', width: '100%' }}>
-            <video ref={videoRef} muted playsInline autoPlay loop={!Array.isArray(src) || src.length === 1} style={{ display: "none" }}>
-                <source src={Array.isArray(src) ? src[0] : src} type="video/mp4" />
-            </video>
+            {isImage ? (
+                <img ref={imageRef} src={firstSrc} alt="" style={{ display: "none" }} />
+            ) : (
+                <video ref={videoRef} muted playsInline autoPlay loop={!Array.isArray(src) || src.length === 1} style={{ display: "none" }}>
+                    <source src={firstSrc} type="video/mp4" />
+                </video>
+            )}
             <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
         </div>
     );

@@ -2,7 +2,7 @@
   "name": "react-video-ascii",
   "version": "1.2.0",
   "type": "module",
-  "description": "React component that renders videos as ASCII animations using WebGL2.",
+  "description": "React component that renders videos and images as ASCII animations using WebGL2.",
   "author": "Lucas Jin",
   "repository": {
     "type": "git",
