@@ -343,17 +343,8 @@ function VideoAscii({
         setupGridRef.current = setupGrid;
         rebuildScatterAtlasRef.current = rebuildScatterAtlas;
 
-        // size canvas to container display dimensions
-        const setupCanvas = (cw: number, ch: number) => {
-            containerW = Math.round(cw);
-            containerH = Math.round(ch);
-            containerWRef.current = containerW;
-            containerHRef.current = containerH;
-            canvas.width = containerW;
-            canvas.height = containerH;
-            setupGrid(numColsRef.current);
-
-            // crop media to match snapped canvas AR (avoids slight AR error from container dimensions)
+        // crop media to match snapped canvas AR (avoids slight AR error from container dimensions)
+        const setupCrop = () => {
             const mediaSize = getMediaSize();
             if (mediaSize.width === 0 || mediaSize.height === 0) return;
             const mediaAR = mediaSize.width / mediaSize.height;
@@ -379,6 +370,22 @@ function VideoAscii({
             gl.uniform2f(resources.p1CropOffsetLoc, offsetX, offsetY);
             gl.uniform2f(resources.p1CropScaleLoc, scaleX, scaleY);
             gl.useProgram(program);
+        };
+
+        // size canvas to container display dimensions
+        const setupCanvas = (cw: number, ch: number) => {
+            const w = Math.round(cw);
+            const h = Math.round(ch);
+            if (w !== containerW || h !== containerH) {
+                containerW = w;
+                containerH = h;
+                containerWRef.current = containerW;
+                containerHRef.current = containerH;
+                canvas.width = containerW;
+                canvas.height = containerH;
+                setupGrid(numColsRef.current);
+            }
+            setupCrop();
         };
         setupCanvasRef.current = setupCanvas;
 
