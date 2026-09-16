@@ -73,7 +73,7 @@ const [video, setVideo] = useState<HTMLVideoElement | null>(null);
 
 > **Note 3:** With `media`, VideoAscii calls `play()` on a video when it starts sampling it and never pauses it; pausing, muting and loading are up to you. Changing `media` (or `src`) only uploads the new texture; the WebGL context, shaders and glyph atlas are kept.
 
-> **Note 4:** `paused` only stops the render loop; the WebGL context, shaders and media are still set up, so a paused instance can be mounted early (even hidden with `display: none`) and shown later with no delay. A `src` video is paused and resumed along with the render loop. A `media` video is left to you, apart from the `play()` call when sampling starts. A reveal effect starts when the first frame is drawn, so it plays on unpause rather than while paused.
+> **Note 4:** `paused` only stops the render loop; the WebGL context, shaders and media are still set up, and a still frame is drawn (and redrawn after resizes or prop changes), so a paused instance can be mounted early and shown later with no delay. Hide it with `visibility: hidden` rather than `display: none` so it is laid out at its real size while paused. A `src` video is paused and resumed along with the render loop. A `media` video is left to you, apart from the `play()` call when sampling starts. A reveal effect starts when the first frame is drawn, so it plays on unpause rather than while paused.
 
 ## Props
 
@@ -94,7 +94,7 @@ const [video, setVideo] = useState<HTMLVideoElement | null>(null);
 | `revealEffect` | `boolean \| RevealEffectOptions` | `false` | — | Reveal animation on load. `true` uses defaults. |
 | `cropFocus` | `'left' \| 'center' \| 'right'` | `'center'` | — | Determines where to anchor the cropping around. |
 | `maxDpr` | `number` | *(uncapped)* | `1–4` | Caps the device-pixel ratio the canvas renders at (renders normally at sharpest res). |
-| `paused` | `boolean` | `false` | — | Stops drawing frames while `true`. Setup and loading still happen, so unpausing is instant. |
+| `paused` | `boolean` | `false` | — | Freezes the render loop while `true`. The canvas keeps showing a still frame, and setup and loading still happen, so unpausing is instant. |
 | `className` | `string` | — | — | CSS class on the outer container. |
 
 ---

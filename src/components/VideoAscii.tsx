@@ -82,6 +82,7 @@ function VideoAscii({
     const attachRef = useRef<((media: HTMLVideoElement | HTMLImageElement) => void) | null>(null);
     const detachRef = useRef<(() => void) | null>(null);
     const activeMediaRef = useRef<HTMLVideoElement | HTMLImageElement | null>(null);
+    const redrawRef = useRef<(() => void) | null>(null);
     // update refs inside useEffect (not in render) -> avoids unintentional errors
     useEffect(() => {
         brightnessRef.current = brightness;
@@ -111,6 +112,7 @@ function VideoAscii({
         spreadSpeedRef.current = spreadSpeed;
         numColsRef.current = numCols;
         videoModeRef.current = videoMode;
+        redrawRef.current?.();
     }, [
         brightness,
         saturation,
@@ -144,6 +146,7 @@ function VideoAscii({
     useEffect(() => {
         if (loadedRef.current) {
             setupGridRef.current?.(numCols);
+            redrawRef.current?.();
         }
     }, [numCols]);
 
@@ -386,6 +389,7 @@ function VideoAscii({
                 setupGrid(numColsRef.current);
             }
             setupCrop();
+            redraw();
         };
         setupCanvasRef.current = setupCanvas;
 
@@ -419,7 +423,7 @@ function VideoAscii({
         };
         canvas.addEventListener("click", onClick);
 
-        const loop = () => {
+        const drawFrame = () => {
             // update dynamic uniforms per frame
             gl.uniform1i(resources.videoModeLoc, videoModeRef.current ? 1 : 0);
             gl.uniform1f(resources.brightnessLoc, brightnessRef.current);
@@ -460,14 +464,25 @@ function VideoAscii({
                 gl.useProgram(program);
             }
             gl.drawArrays(gl.TRIANGLES, 0, 6);
+        };
+
+        const loop = () => {
+            drawFrame();
             animFrameId = requestAnimationFrame(loop);
         };
+
+        // paused instances keep showing the latest state instead of a blank canvas
+        const redraw = () => {
+            if (loadedRef.current) drawFrame();
+        };
+        redrawRef.current = redraw;
 
         const start = () => {
             if (running) return;
             running = true;
             if (startTime < 0) startTime = performance.now();
             animFrameId = requestAnimationFrame(loop);
+            drawFrame();
         };
 
         const stop = () => {
@@ -514,6 +529,7 @@ function VideoAscii({
             stop();
             if (pausedRef.current) {
                 if (!external) video?.pause();
+                drawFrame();
             } else {
                 video?.play();
                 start();
@@ -550,6 +566,7 @@ function VideoAscii({
             resumeRef.current = null;
             attachRef.current = null;
             detachRef.current = null;
+            redrawRef.current = null;
             loadedRef.current = false;
             stop();
             canvas.removeEventListener("mousemove", onMouseMove);
