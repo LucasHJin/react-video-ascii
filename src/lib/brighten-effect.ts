@@ -23,6 +23,10 @@ export function createMouseTrail({
             }
         },
 
+        reset() {
+            trail.length = 0;
+        },
+
         tick(gl: WebGL2RenderingContext, mousePositionsLoc: WebGLUniformLocation | null, mouseLifeFracsLoc: WebGLUniformLocation | null) {
             if (!brightenEnabledRef.current) return;
             const now = performance.now();

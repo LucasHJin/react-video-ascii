@@ -29,6 +29,10 @@ export function createClickEffect({
             }
         },
 
+        reset() {
+            ripples.length = 0;
+        },
+
         tick(
             gl: WebGL2RenderingContext,
             canvas: HTMLCanvasElement,

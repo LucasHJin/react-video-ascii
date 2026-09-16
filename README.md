@@ -71,7 +71,7 @@ const [video, setVideo] = useState<HTMLVideoElement | null>(null);
 
 > **Note 2:** The component fills its parent container. Control size via the parent element or the `className` prop.
 
-> **Note 3:** With `media`, VideoAscii calls `play()` on a video when it starts sampling it and never pauses it; pausing, muting and loading are up to you. Changing `media` re-initialises the renderer but performs no network load.
+> **Note 3:** With `media`, VideoAscii calls `play()` on a video when it starts sampling it and never pauses it; pausing, muting and loading are up to you. Changing `media` (or `src`) only uploads the new texture; the WebGL context, shaders and glyph atlas are kept.
 
 > **Note 4:** `paused` only stops the render loop; the WebGL context, shaders and media are still set up, so a paused instance can be mounted early (even hidden with `display: none`) and shown later with no delay. A `src` video is paused and resumed along with the render loop. A `media` video is left to you, apart from the `play()` call when sampling starts. A reveal effect starts when the first frame is drawn, so it plays on unpause rather than while paused.
 

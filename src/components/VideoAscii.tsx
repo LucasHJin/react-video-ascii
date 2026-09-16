@@ -79,6 +79,9 @@ function VideoAscii({
     const pausedRef = useRef(paused);
     const pauseRef = useRef<(() => void) | null>(null);
     const resumeRef = useRef<(() => void) | null>(null);
+    const attachRef = useRef<((media: HTMLVideoElement | HTMLImageElement) => void) | null>(null);
+    const detachRef = useRef<(() => void) | null>(null);
+    const activeMediaRef = useRef<HTMLVideoElement | HTMLImageElement | null>(null);
     // update refs inside useEffect (not in render) -> avoids unintentional errors
     useEffect(() => {
         brightnessRef.current = brightness;
@@ -181,18 +184,18 @@ function VideoAscii({
         let gridOffsetY = 0;
         let containerW = 0;
         let containerH = 0;
+        let media: HTMLVideoElement | HTMLImageElement | null = null;
+        let video: HTMLVideoElement | null = null;
 
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const media = external ? mediaProp : isImage ? imageRef.current : videoRef.current;
-        if (!media) return;
-        const video = media instanceof HTMLVideoElement ? media : null;
-        const image = media instanceof HTMLImageElement ? media : null;
         const getMediaSize = () =>
             media instanceof HTMLVideoElement
                 ? { width: media.videoWidth, height: media.videoHeight }
-                : { width: media.naturalWidth, height: media.naturalHeight };
+                : media
+                    ? { width: media.naturalWidth, height: media.naturalHeight }
+                    : { width: 0, height: 0 };
 
         const gl = canvas.getContext("webgl2");
         if (!gl) return;
@@ -221,10 +224,6 @@ function VideoAscii({
         let running = false;
         let lastTime = -1;
         let startTime = -1;
-        let currentVidIndex = 0;
-
-        const sources = Array.isArray(src) ? src : src === undefined ? [] : [src];
-        const isMultiSource = sources.length > 1;
 
         // extract hiddenCtx (use it for all reusable writing)
         const hiddenCanvas = document.createElement('canvas');
@@ -356,6 +355,7 @@ function VideoAscii({
 
             // crop media to match snapped canvas AR (avoids slight AR error from container dimensions)
             const mediaSize = getMediaSize();
+            if (mediaSize.width === 0 || mediaSize.height === 0) return;
             const mediaAR = mediaSize.width / mediaSize.height;
             const displayAR = canvas.width / canvas.height;
             let scaleX = 1.0;
@@ -478,7 +478,14 @@ function VideoAscii({
             start();
         };
 
-        const onLoaded = () => {
+        // media change -> upload the new texture and restart the loop without full GL reinit
+        const attach = (m: HTMLVideoElement | HTMLImageElement) => {
+            media = m;
+            video = m instanceof HTMLVideoElement ? m : null;
+            lastTime = -1;
+            trailEffects.reset();
+            clickEffects.reset();
+
             const containerEl = containerRef.current!;
             const s = rawSizeRef.current;
             if (s && s.width > 0 && s.height > 0) {
@@ -493,7 +500,7 @@ function VideoAscii({
 
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, resources.texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, media);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, m);
 
             startTime = -1;
             loadedRef.current = true;
@@ -505,14 +512,14 @@ function VideoAscii({
                 start();
             }
         };
-
-        const onEnded = () => {
-            if (!video) return;
-            currentVidIndex = (currentVidIndex + 1) % sources.length;
-            video.src = sources[currentVidIndex];
-            video.load();
-            video.addEventListener('canplay', () => video.play(), { once: true });
+        const detach = () => {
+            stop();
+            loadedRef.current = false;
+            media = null;
+            video = null;
         };
+        attachRef.current = attach;
+        detachRef.current = detach;
 
         // resize canvas when container is resized
         const unobserve = containerRef.current
@@ -523,6 +530,64 @@ function VideoAscii({
                 }
             })
             : () => {};
+
+        if (activeMediaRef.current) attach(activeMediaRef.current);
+
+        return () => {
+            unobserve();
+            setupGridRef.current = null;
+            rebuildScatterAtlasRef.current = null;
+            setupCanvasRef.current = null;
+            applyDeviceSizeRef.current = null;
+            pauseRef.current = null;
+            resumeRef.current = null;
+            attachRef.current = null;
+            detachRef.current = null;
+            loadedRef.current = false;
+            stop();
+            canvas.removeEventListener("mousemove", onMouseMove);
+            canvas.removeEventListener("mouseleave", onMouseLeave);
+            canvas.removeEventListener("click", onClick);
+
+            gl.deleteTexture(resources.texture);
+            gl.deleteTexture(resources.charVectorsTexture);
+            gl.deleteFramebuffer(resources.fbo);
+            gl.deleteTexture(resources.fboTexture);
+            gl.deleteBuffer(resources.buffer);
+            gl.deleteShader(resources.vertShader);
+            gl.deleteShader(resources.fragShader);
+            gl.deleteShader(resources.pass1FragShader);
+            gl.deleteProgram(program);
+            gl.deleteProgram(pass1Program);
+            gl.deleteTexture(atlasTextureRef.current);
+            gl.deleteTexture(scatterAtlasTextureRef.current);
+            gl.deleteTexture(resources.scatterStateTexture);
+            gl.deleteTexture(resources.spreadStateTexture);
+        };
+    }, [external, charMode, chars, revealEffectFlag, revealDuration, revealEnabled]);
+
+    useEffect(() => {
+        const media = external ? mediaProp : isImage ? imageRef.current : videoRef.current;
+        if (!media) return;
+        const video = media instanceof HTMLVideoElement ? media : null;
+        const image = media instanceof HTMLImageElement ? media : null;
+
+        const sources = Array.isArray(src) ? src : src === undefined ? [] : [src];
+        const isMultiSource = sources.length > 1;
+        let currentVidIndex = 0;
+
+        const onLoaded = () => {
+            activeMediaRef.current = media;
+            attachRef.current?.(media);
+        };
+
+        const onEnded = () => {
+            if (!video) return;
+            currentVidIndex = (currentVidIndex + 1) % sources.length;
+            video.src = sources[currentVidIndex];
+            video.load();
+            video.addEventListener('canplay', () => video.play(), { once: true });
+        };
 
         if (video) {
             video.addEventListener("loadeddata", onLoaded, { once: !external });
@@ -545,15 +610,6 @@ function VideoAscii({
         }
 
         return () => {
-            unobserve();
-            setupGridRef.current = null;
-            rebuildScatterAtlasRef.current = null;
-            setupCanvasRef.current = null;
-            applyDeviceSizeRef.current = null;
-            pauseRef.current = null;
-            resumeRef.current = null;
-            loadedRef.current = false;
-            stop();
             if (video) {
                 video.removeEventListener("loadeddata", onLoaded);
                 if (isMultiSource) {
@@ -562,26 +618,10 @@ function VideoAscii({
             } else {
                 image?.removeEventListener("load", onLoaded);
             }
-            canvas.removeEventListener("mousemove", onMouseMove);
-            canvas.removeEventListener("mouseleave", onMouseLeave);
-            canvas.removeEventListener("click", onClick);
-
-            gl.deleteTexture(resources.texture);
-            gl.deleteTexture(resources.charVectorsTexture);
-            gl.deleteFramebuffer(resources.fbo);
-            gl.deleteTexture(resources.fboTexture);
-            gl.deleteBuffer(resources.buffer);
-            gl.deleteShader(resources.vertShader);
-            gl.deleteShader(resources.fragShader);
-            gl.deleteShader(resources.pass1FragShader);
-            gl.deleteProgram(program);
-            gl.deleteProgram(pass1Program);
-            gl.deleteTexture(atlasTextureRef.current);
-            gl.deleteTexture(scatterAtlasTextureRef.current);
-            gl.deleteTexture(resources.scatterStateTexture);
-            gl.deleteTexture(resources.spreadStateTexture);
+            activeMediaRef.current = null;
+            detachRef.current?.();
         };
-    }, [src, mediaProp, external, charMode, chars, revealEffectFlag, revealDuration, revealEnabled, isImage]);
+    }, [src, mediaProp, external, isImage]);
 
     const firstSrc = Array.isArray(src) ? src[0] : src;
 
