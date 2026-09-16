@@ -27,6 +27,7 @@ function VideoAscii({
         className,
         cropFocus = 'center',
         maxDpr: maxDprRaw,
+        paused = false,
     }: Props) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -75,6 +76,9 @@ function VideoAscii({
     const pixelScaleRef = useRef(1);
     const rawSizeRef = useRef<DevicePixelSize | null>(null);
     const applyDeviceSizeRef = useRef<((s: DevicePixelSize) => void) | null>(null);
+    const pausedRef = useRef(paused);
+    const pauseRef = useRef<(() => void) | null>(null);
+    const resumeRef = useRef<(() => void) | null>(null);
     // update refs inside useEffect (not in render) -> avoids unintentional errors
     useEffect(() => {
         brightnessRef.current = brightness;
@@ -155,6 +159,16 @@ function VideoAscii({
         }
     }, [maxDpr]);
 
+    // paused change -> stop/start the render loop without full GL reinit
+    useEffect(() => {
+        pausedRef.current = paused;
+        if (paused) {
+            pauseRef.current?.();
+        } else {
+            resumeRef.current?.();
+        }
+    }, [paused]);
+
     useEffect(() => {
         loadedRef.current = false;
 
@@ -204,6 +218,7 @@ function VideoAscii({
         const spreadEffects = createSpreadEffect({ spreadEnabledRef, scatterCharsRef, spreadExpandDurationRef, spreadSpeedRef });
 
         let animFrameId = 0;
+        let running = false;
         let lastTime = -1;
         let startTime = -1;
         let currentVidIndex = 0;
@@ -441,6 +456,28 @@ function VideoAscii({
             animFrameId = requestAnimationFrame(loop);
         };
 
+        const start = () => {
+            if (running) return;
+            running = true;
+            if (startTime < 0) startTime = performance.now();
+            animFrameId = requestAnimationFrame(loop);
+        };
+
+        const stop = () => {
+            running = false;
+            cancelAnimationFrame(animFrameId);
+        };
+
+        pauseRef.current = () => {
+            stop();
+            if (!external) video?.pause();
+        };
+        resumeRef.current = () => {
+            if (!loadedRef.current) return;
+            video?.play();
+            start();
+        };
+
         const onLoaded = () => {
             const containerEl = containerRef.current!;
             const s = rawSizeRef.current;
@@ -458,11 +495,15 @@ function VideoAscii({
             gl.bindTexture(gl.TEXTURE_2D, resources.texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, media);
 
-            video?.play();
-            startTime = performance.now();
+            startTime = -1;
             loadedRef.current = true;
-            cancelAnimationFrame(animFrameId);
-            animFrameId = requestAnimationFrame(loop);
+            stop();
+            if (pausedRef.current) {
+                if (!external) video?.pause();
+            } else {
+                video?.play();
+                start();
+            }
         };
 
         const onEnded = () => {
@@ -509,8 +550,10 @@ function VideoAscii({
             rebuildScatterAtlasRef.current = null;
             setupCanvasRef.current = null;
             applyDeviceSizeRef.current = null;
+            pauseRef.current = null;
+            resumeRef.current = null;
             loadedRef.current = false;
-            cancelAnimationFrame(animFrameId);
+            stop();
             if (video) {
                 video.removeEventListener("loadeddata", onLoaded);
                 if (isMultiSource) {

@@ -51,6 +51,7 @@ interface BaseProps {
     className?: string;
     cropFocus?: 'left' | 'center' | 'right';
     maxDpr?: number;
+    paused?: boolean;
 }
 
 export interface SourceProps extends BaseProps {

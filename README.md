@@ -73,6 +73,8 @@ const [video, setVideo] = useState<HTMLVideoElement | null>(null);
 
 > **Note 3:** With `media`, VideoAscii calls `play()` on a video when it starts sampling it and never pauses it; pausing, muting and loading are up to you. Changing `media` re-initialises the renderer but performs no network load.
 
+> **Note 4:** `paused` only stops the render loop; the WebGL context, shaders and media are still set up, so a paused instance can be mounted early (even hidden with `display: none`) and shown later with no delay. A `src` video is paused and resumed along with the render loop. A `media` video is left to you, apart from the `play()` call when sampling starts. A reveal effect starts when the first frame is drawn, so it plays on unpause rather than while paused.
+
 ## Props
 
 | Prop | Type | Default | Range | Description |
@@ -92,6 +94,7 @@ const [video, setVideo] = useState<HTMLVideoElement | null>(null);
 | `revealEffect` | `boolean \| RevealEffectOptions` | `false` | — | Reveal animation on load. `true` uses defaults. |
 | `cropFocus` | `'left' \| 'center' \| 'right'` | `'center'` | — | Determines where to anchor the cropping around. |
 | `maxDpr` | `number` | *(uncapped)* | `1–4` | Caps the device-pixel ratio the canvas renders at (renders normally at sharpest res). |
+| `paused` | `boolean` | `false` | — | Stops drawing frames while `true`. Setup and loading still happen, so unpausing is instant. |
 | `className` | `string` | — | — | CSS class on the outer container. |
 
 ---
